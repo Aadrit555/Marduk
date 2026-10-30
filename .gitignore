@@ -1,6 +1,6 @@
 /target
 **/*.rs.bk
 Cargo.lock
-dashboard/node_modules
+frontend/node_modules
 .env
 *.log
