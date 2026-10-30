@@ -45,9 +45,11 @@ pub fn build_app(state: AppState) -> Router {
         );
 
     let router = if std::path::Path::new("dashboard/dist").exists() {
-        router.fallback_service(tower_http::services::ServeDir::new("dashboard/dist").fallback(
-            tower_http::services::ServeFile::new("dashboard/dist/index.html"),
-        ))
+        router.fallback_service(
+            tower_http::services::ServeDir::new("dashboard/dist").fallback(
+                tower_http::services::ServeFile::new("dashboard/dist/index.html"),
+            ),
+        )
     } else {
         router
     };

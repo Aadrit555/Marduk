@@ -5,8 +5,11 @@ import { GpuMonitoringTab } from './components/GpuMonitoringTab';
 import { WorkerManagementTab } from './components/WorkerManagementTab';
 import { ModelManagementTab } from './components/ModelManagementTab';
 import { SchedulerTab } from './components/SchedulerTab';
+import { RequestsTab } from './components/RequestsTab';
 import { PerformanceTab } from './components/PerformanceTab';
 import { DiagnosticsTab } from './components/DiagnosticsTab';
+import { SettingsTab } from './components/SettingsTab';
+import { PortalLanding } from './components/PortalLanding';
 import {
   HealthResponse,
   SystemTelemetry,
@@ -25,6 +28,7 @@ import {
 } from './api';
 
 export const App: React.FC = () => {
+  const [viewMode, setViewMode] = useState<'portal' | 'dashboard'>('portal');
   const [activeTab, setActiveTab] = useState<string>('overview');
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [telemetry, setTelemetry] = useState<SystemTelemetry | null>(null);
@@ -73,6 +77,34 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [autoRefresh, loadData]);
 
+  // Handle URL hash changes (#dashboard, #portal)
+  useEffect(() => {
+    const handleHash = () => {
+      if (window.location.hash === '#dashboard') {
+        setViewMode('dashboard');
+      } else if (window.location.hash === '#portal') {
+        setViewMode('portal');
+      }
+    };
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
+  const handleOpenDashboard = () => {
+    window.location.hash = 'dashboard';
+    setViewMode('dashboard');
+  };
+
+  const handleBackToPortal = () => {
+    window.location.hash = 'portal';
+    setViewMode('portal');
+  };
+
+  if (viewMode === 'portal') {
+    return <PortalLanding onEnterControlCenter={handleOpenDashboard} />;
+  }
+
   return (
     <div className="dashboard-container">
       <Header
@@ -81,6 +113,7 @@ export const App: React.FC = () => {
         health={health}
         onRefresh={loadData}
         isRefreshing={isRefreshing}
+        onBackToPortal={handleBackToPortal}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-6">
@@ -116,8 +149,12 @@ export const App: React.FC = () => {
         {activeTab === 'workers' && <WorkerManagementTab workers={workers} onRefresh={loadData} />}
         {activeTab === 'models' && <ModelManagementTab models={models} workers={workers} />}
         {activeTab === 'scheduler' && <SchedulerTab decisions={decisions} />}
-        {activeTab === 'performance' && <PerformanceTab metrics={metrics} />}
-        {activeTab === 'diagnostics' && <DiagnosticsTab telemetry={telemetry} />}
+        {activeTab === 'requests' && <RequestsTab decisions={decisions} metrics={metrics} />}
+        {activeTab === 'benchmarks' && <PerformanceTab metrics={metrics} />}
+        {activeTab === 'logs' && <DiagnosticsTab telemetry={telemetry} />}
+        {activeTab === 'settings' && (
+          <SettingsTab autoRefresh={autoRefresh} setAutoRefresh={setAutoRefresh} />
+        )}
       </main>
 
       {/* Footer */}
