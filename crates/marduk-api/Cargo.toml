@@ -1,0 +1,27 @@
+[package]
+name = "marduk-api"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Axum HTTP API, OpenAI-compatible endpoints, SSE streaming, and operational telemetry for MARDUK"
+
+[dependencies]
+marduk-core = { workspace = true }
+marduk-nvml = { workspace = true }
+marduk-worker = { workspace = true }
+marduk-scheduler = { workspace = true }
+marduk-learned = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+futures = { workspace = true }
+parking_lot = { workspace = true }
+async-stream = "0.3"

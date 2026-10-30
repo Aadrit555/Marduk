@@ -1,0 +1,6 @@
+[net]
+retry = 10
+
+[http]
+timeout = 120
+check-revoke = false

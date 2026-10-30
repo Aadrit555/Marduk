@@ -1,0 +1,19 @@
+[package]
+name = "marduk-nvml"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Hardware discovery and NVML GPU telemetry engine for MARDUK"
+
+[dependencies]
+marduk-core = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+sysinfo = { workspace = true }
+parking_lot = { workspace = true }
+nvml-wrapper = "0.10.0"

@@ -1,0 +1,24 @@
+[package]
+name = "marduk-bench"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Reproducible inference performance benchmark harness for MARDUK"
+
+[dependencies]
+marduk-core = { workspace = true }
+marduk-api = { workspace = true }
+marduk-nvml = { workspace = true }
+marduk-worker = { workspace = true }
+marduk-scheduler = { workspace = true }
+marduk-learned = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+futures = { workspace = true }
+reqwest = { workspace = true }
+parking_lot = { workspace = true }
