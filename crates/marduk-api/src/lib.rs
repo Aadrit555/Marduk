@@ -44,10 +44,10 @@ pub fn build_app(state: AppState) -> Router {
             post(routes::openai_chat_completions_handler),
         );
 
-    let router = if std::path::Path::new("dashboard/dist").exists() {
+    let router = if std::path::Path::new("frontend/dist").exists() {
         router.fallback_service(
-            tower_http::services::ServeDir::new("dashboard/dist").fallback(
-                tower_http::services::ServeFile::new("dashboard/dist/index.html"),
+            tower_http::services::ServeDir::new("frontend/dist").fallback(
+                tower_http::services::ServeFile::new("frontend/dist/index.html"),
             ),
         )
     } else {
