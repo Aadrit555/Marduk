@@ -130,9 +130,7 @@ export const Footer: React.FC<FooterProps> = () => {
             Documentation
           </a>
           <a
-            href="https://github.com/Aadrit555/Marduk/releases"
-            target="_blank"
-            rel="noopener noreferrer"
+            href="#download"
             className="hover:underline"
           >
             Release notes

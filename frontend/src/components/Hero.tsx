@@ -16,6 +16,13 @@ import {
   fetchBenchmarkHistory,
 } from '../api';
 import { BenchmarkModal } from './BenchmarkModal';
+import {
+  DIRECT_WINDOWS_DOWNLOAD,
+  WIN_FILENAME,
+  WIN_FILE_SIZE,
+  APP_VERSION,
+  detectVisitorOS,
+} from '../constants/downloads';
 
 interface HeroProps {
   onOpenControlCenter: () => void;
@@ -173,6 +180,14 @@ export const Hero: React.FC<HeroProps> = ({
   const [selectedBenchmark, setSelectedBenchmark] = useState<BenchmarkType | null>(null);
   const [history, setHistory] = useState<BenchmarkJob[]>([]);
   const [hoveredModule, setHoveredModule] = useState<string | null>(null);
+  const [visitorOs, setVisitorOs] = useState<{ os: string; label: string }>({
+    os: 'windows',
+    label: 'Windows x64',
+  });
+
+  useEffect(() => {
+    setVisitorOs(detectVisitorOS());
+  }, []);
 
   useEffect(() => {
     // Initial fetch of benchmark history to display real metrics on boxes
@@ -353,26 +368,73 @@ export const Hero: React.FC<HeroProps> = ({
           ref={ctasRef}
           className="hero-ctas flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4"
         >
-          <a
-            href="#download"
-            className="btn w-full sm:w-auto h-[42px] px-8 text-sm font-semibold tracking-[-0.01em] inline-flex items-center justify-center gap-2 shadow-sm"
-          >
-            <Download className="w-4 h-4" />
-            <span>DOWNLOAD MARDUK</span>
-          </a>
+          {visitorOs.os === 'windows' ? (
+            <a
+              href={DIRECT_WINDOWS_DOWNLOAD}
+              download={WIN_FILENAME}
+              className="btn w-full sm:w-auto h-[44px] px-8 text-sm font-semibold tracking-[-0.01em] inline-flex items-center justify-center gap-2 shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-transform"
+              aria-label="Download MARDUK for Windows x64"
+            >
+              <Download className="w-4 h-4" />
+              <span>DOWNLOAD MARDUK</span>
+            </a>
+          ) : (
+            <a
+              href="#download"
+              className="btn w-full sm:w-auto h-[44px] px-8 text-sm font-semibold tracking-[-0.01em] inline-flex items-center justify-center gap-2 shadow-sm"
+              aria-label="Download MARDUK Options"
+            >
+              <Download className="w-4 h-4" />
+              <span>DOWNLOAD MARDUK</span>
+            </a>
+          )}
           <button
             onClick={onExplorePlatform}
-            className="btn-secondary w-full sm:w-auto h-[42px] px-6 text-sm font-semibold text-[#121410] inline-flex items-center justify-center gap-1.5"
+            className="btn-secondary w-full sm:w-auto h-[44px] px-6 text-sm font-semibold text-[#121410] inline-flex items-center justify-center gap-1.5"
           >
             <span>EXPLORE THE BENCHMARKS</span>
             <ChevronDown className="w-4 h-4 opacity-70" />
           </button>
         </div>
 
-        {/* 6. Honest Hardware Execution Note */}
-        <p className="text-[11px] sm:text-xs text-[#4d6a10] font-medium tracking-wide mt-3.5 max-w-lg mx-auto">
-          A desktop application for Windows, macOS and Linux. Hardware tests run locally—not in your browser.
-        </p>
+        {/* 6. Version, OS Recommendation and Execution Note */}
+        <div className="mt-3 text-center">
+          <p className="text-[11.5px] sm:text-xs text-[#2c3326] font-medium">
+            {visitorOs.os === 'windows' ? (
+              <>
+                <span className="font-semibold text-[#4d6a10]">{APP_VERSION}</span> for{' '}
+                <span className="font-semibold text-[#121410]">Windows x64</span> ({WIN_FILE_SIZE})
+                <span className="mx-2 text-[#a0ad91]">•</span>
+                <a
+                  href="#download"
+                  className="text-[#4d6a10] hover:underline font-semibold"
+                >
+                  macOS & Linux (Coming Soon)
+                </a>
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded-full text-[10.5px] mr-1.5">
+                  COMING SOON FOR {visitorOs.label.toUpperCase()}
+                </span>
+                <a
+                  href={DIRECT_WINDOWS_DOWNLOAD}
+                  download={WIN_FILENAME}
+                  className="text-[#4d6a10] hover:underline font-semibold"
+                >
+                  Get Windows x64 ({WIN_FILE_SIZE})
+                </a>
+                <span className="mx-2 text-[#a0ad91]">•</span>
+                <a href="#download" className="text-[#4d6a10] hover:underline font-medium">
+                  All platforms
+                </a>
+              </>
+            )}
+          </p>
+          <p className="text-[11px] text-[#4d6a10] font-medium tracking-wide mt-1">
+            A native desktop application. Hardware tests execute locally on your physical machine.
+          </p>
+        </div>
       </div>
 
       {/* Hero Video Media Backdrop */}

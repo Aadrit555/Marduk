@@ -1,6 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HealthStatus } from '../api';
 import { Menu, X, Download, Activity } from 'lucide-react';
+import {
+  DIRECT_WINDOWS_DOWNLOAD,
+  WIN_FILENAME,
+  detectVisitorOS,
+} from '../constants/downloads';
 
 interface NavbarProps {
   health: HealthStatus | null;
@@ -14,6 +19,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenControlCenter,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isWindows, setIsWindows] = useState(true);
+
+  useEffect(() => {
+    setIsWindows(detectVisitorOS().os === 'windows');
+  }, []);
 
   const getStatusBadge = () => {
     if (connectionState === 'connecting') {
@@ -88,7 +98,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="hidden sm:block">{getStatusBadge()}</div>
 
             <a
-              href="#download"
+              href={isWindows ? DIRECT_WINDOWS_DOWNLOAD : '#download'}
+              {...(isWindows ? { download: WIN_FILENAME } : {})}
               className="btn text-xs sm:text-[13px]"
               aria-label="Download MARDUK Desktop"
             >
@@ -141,7 +152,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <div className="pt-2 flex flex-col gap-2">
               <a
-                href="#download"
+                href={isWindows ? DIRECT_WINDOWS_DOWNLOAD : '#download'}
+                {...(isWindows ? { download: WIN_FILENAME } : {})}
                 onClick={() => setMobileMenuOpen(false)}
                 className="btn w-full justify-center text-sm"
               >
