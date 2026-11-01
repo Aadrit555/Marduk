@@ -1,0 +1,31 @@
+[package]
+name = "marduk-desktop"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "MARDUK Desktop: Cross-Platform Native GPU & CPU Hardware Benchmarking Application"
+
+[lib]
+name = "marduk_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+marduk-core = { path = "../crates/marduk-core" }
+marduk-nvml = { path = "../crates/marduk-nvml" }
+marduk-worker = { path = "../crates/marduk-worker" }
+marduk-bench = { path = "../crates/marduk-bench" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+log = "0.4"
+tauri = { version = "2.12.5" }
+tauri-plugin-log = "2"
+parking_lot = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

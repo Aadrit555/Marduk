@@ -192,6 +192,159 @@ pub async fn get_metrics_handler(State(state): State<AppState>) -> Response {
     Json(snap).into_response()
 }
 
+pub async fn get_benchmarks_handler(State(state): State<AppState>) -> Response {
+    let list = state.benchmark_results.read().clone();
+    Json(list).into_response()
+}
+
+pub async fn run_benchmark_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<Option<marduk_bench::BenchmarkConfig>>,
+) -> Response {
+    let config = payload.unwrap_or_default();
+    let harness = marduk_bench::BenchmarkHarness::new();
+
+    let multifactor = harness
+        .run_benchmark(
+            &config,
+            SchedulerPolicy::DeterministicMultiFactor,
+            "Deterministic Multi-Factor",
+        )
+        .await;
+
+    let baseline = harness
+        .run_benchmark(
+            &config,
+            SchedulerPolicy::RoundRobinBaseline,
+            "Round-Robin Baseline",
+        )
+        .await;
+
+    {
+        let mut history = state.benchmark_results.write();
+        history.push(multifactor.clone());
+        history.push(baseline.clone());
+        if history.len() > 50 {
+            let excess = history.len() - 50;
+            history.drain(0..excess);
+        }
+    }
+
+    Json(serde_json::json!({
+        "status": "success",
+        "multifactor": multifactor,
+        "baseline": baseline,
+    }))
+    .into_response()
+}
+
+// Dedicated GPU Benchmark Subsystem Endpoints
+pub async fn get_benchmark_capabilities_handler(State(state): State<AppState>) -> Response {
+    let caps = state.benchmark_engine.get_capabilities();
+    Json(caps).into_response()
+}
+
+pub async fn get_system_hardware_handler(State(state): State<AppState>) -> Response {
+    let summary = state.benchmark_engine.get_system_hardware();
+    Json(summary).into_response()
+}
+
+pub async fn get_system_rating_handler(State(state): State<AppState>) -> Response {
+    let rating = state.benchmark_engine.get_system_rating();
+    Json(rating).into_response()
+}
+
+pub async fn export_benchmark_results_handler(
+    State(state): State<AppState>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Response {
+    let format = params.get("format").map(|s| s.as_str()).unwrap_or("json");
+    match state.benchmark_engine.export_results(format) {
+        Ok(content) => {
+            let content_type = if format == "csv" { "text/csv" } else { "application/json" };
+            (
+                [(axum::http::header::CONTENT_TYPE, content_type)],
+                content,
+            )
+                .into_response()
+        }
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": err })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn get_benchmark_history_handler(State(state): State<AppState>) -> Response {
+    let history = state.benchmark_engine.get_history();
+    Json(history).into_response()
+}
+
+pub async fn get_benchmark_job_handler(
+    State(state): State<AppState>,
+    Path(run_id): Path<String>,
+) -> Response {
+    if let Some(job) = state.benchmark_engine.get_job(&run_id) {
+        Json(job).into_response()
+    } else {
+        (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "error": format!("Benchmark job with ID '{}' not found", run_id)
+            })),
+        )
+            .into_response()
+    }
+}
+
+pub async fn run_benchmark_job_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<marduk_bench::RunBenchmarkRequest>,
+) -> Response {
+    match state.benchmark_engine.submit_job(payload).await {
+        Ok(run_id) => (
+            StatusCode::ACCEPTED,
+            Json(serde_json::json!({
+                "status": "submitted",
+                "run_id": run_id,
+                "message": "Benchmark job submitted and undergoing preflight checks"
+            })),
+        )
+            .into_response(),
+        Err(err) => (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({
+                "status": "rejected",
+                "error": err
+            })),
+        )
+            .into_response(),
+    }
+}
+
+pub async fn cancel_benchmark_job_handler(
+    State(state): State<AppState>,
+    Path(run_id): Path<String>,
+) -> Response {
+    match state.benchmark_engine.cancel_job(&run_id) {
+        Ok(_) => Json(serde_json::json!({
+            "status": "cancelled",
+            "run_id": run_id,
+            "message": "Cancellation signal dispatched"
+        }))
+        .into_response(),
+        Err(err) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "status": "error",
+                "error": err
+            })),
+        )
+            .into_response(),
+    }
+}
+
 // OpenAI API compatibility: GET /v1/models
 pub async fn openai_list_models_handler(State(state): State<AppState>) -> Response {
     let registered = state.model_registry.read();

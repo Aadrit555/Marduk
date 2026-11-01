@@ -12,6 +12,7 @@ marduk-nvml = { workspace = true }
 marduk-worker = { workspace = true }
 marduk-scheduler = { workspace = true }
 marduk-learned = { workspace = true }
+marduk-bench = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -70,8 +70,8 @@ This document outlines the step-by-step engineering plan for delivering MARDUK a
 
 ---
 
-## Phase 4: Observability Dashboard
-- [ ] Create modern, responsive frontend in `dashboard/`:
+## Phase 4: Observability & Control Center Frontend
+- [x] Create modern, responsive Petalyx frontend in `frontend/`:
   - Built with React, TypeScript, and Vite.
   - Real-time connection to MARDUK API endpoints.
   - Core views:

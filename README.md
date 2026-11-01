@@ -1,155 +1,138 @@
 # MARDUK
 
-**MARDUK** is an intelligent GPU inference orchestration and resource management platform engineered in Rust. It manages multiple local AI inference workers, distributes generative workloads intelligently across GPUs, monitors real hardware telemetry, improves GPU utilization through measured scheduling decisions, and provides a unified OpenAI-compatible interface for running AI models.
+**Know what your machine can really do.**
+
+MARDUK is a local-first, cross-platform hardware benchmarking and performance analysis application engineered in Rust and TypeScript/React. It measures and explains the real performance of your computer's CPU, GPU, memory, and local AI inference workloads with verifiable measurements, intelligent hardware detection, and built-in safety controls.
 
 ---
 
-## 1. Core Problems Solved
+## 1. Product Overview
 
-1. **Multi-GPU Worker Sprawl**: Managing multiple heterogeneous GPU inference processes and device affinities manually is error-prone and brittle.
-2. **Inefficient Workload Distribution**: Static round-robin routing ignores memory pressure, queue depths, prompt lengths, and KV cache locality.
-3. **VRAM Exhaustion and Thrashing**: Launching requests without admission control causes out-of-memory (OOM) crashes and expensive model swapping.
-4. **Queue Congestion**: Lack of backpressure and cancellation causes inference queues to back up with stale requests.
-5. **Black-Box Scheduling**: Developers lack visibility into *why* an inference request was assigned to a particular GPU or worker.
-6. **Fragmented Observability**: Disconnected GPU metrics (NVML), worker statuses, and inference latencies make capacity planning difficult.
+- **Public Website**: Introduces MARDUK, explains platform compatibility, hosts documentation, and distributes verified desktop installers.
+- **Desktop Application (`marduk-desktop`)**: Native Tauri 2 desktop shell that executes hardware benchmarks locally, samples hardware telemetry, computes deterministic ratings, and records history offline in an embedded SQLite database.
+- **CLI Tooling (`marduk-cli`)**: Headless command-line binary (`marduk bench`, `marduk serve`, `marduk gpus`) for automated testing, continuous integration, and server environments.
 
 ---
 
-## 2. Key Features
+## 2. Core Benchmark Suites
 
-- **Hardware Discovery & NVML Telemetry**: Real-time monitoring of NVIDIA GPUs (VRAM capacity, allocated memory, compute utilization %, encoder/decoder engines, temperature, power draw, clock speeds) via direct NVML bindings with graceful non-fabricating fallbacks.
-- **Worker Lifecycle Management**: Process supervision, GPU device affinity (`CUDA_VISIBLE_DEVICES`), model allocation, health heartbeats, failure recovery, and graceful shutdown.
-- **Explainable Multi-Factor Scheduler**:
-  - *Hard Constraint Filtering*: Enforces health requirements, model compatibility, queue capacity, and strict VRAM headroom thresholds.
-  - *Scoring Function*: Ranks viable workers using queue wait time estimation ($T_{wait} = N_{queue} \times \bar{T}_{service}$), prompt token computation budget, resource pressure penalties, and model residency bonuses.
-  - *Explainability Engine*: Every routing decision logs candidate workers, disqualification rationales, and exact score components.
-- **Admission Control & Backpressure**: Bounded queues, client cancellation propagation, priority bands, and standard HTTP 429 / 503 backpressure signals.
-- **Unified OpenAI-Compatible API**:
-  - `GET /v1/models`
-  - `POST /v1/chat/completions` (Server-Sent Events streaming & non-streaming)
-  - Full operational telemetry suite: `/health`, `/ready`, `/metrics`, `/api/v1/gpus`, `/api/v1/workers`, `/api/v1/models`, `/api/v1/metrics`, `/api/v1/scheduler/decisions`.
-- **Learned Workload Predictor (Burn)**: Deep-learning prediction module built with Burn (using autodiff and reproducible execution traces) to forecast prefill and decode execution times and peak memory demand.
-- **Production Dashboard**: High-fidelity observability web application presenting live GPU telemetry, worker topology, queue dynamics, scheduler decision feeds, and latency distributions.
-- **Reproducible Benchmark Suite**: Rigorous harness measuring RPS, TPS, TTFT (Time to First Token), ITL (Inter-Token Latency), P50/P95/P99 latency, and orchestration overhead.
+Assigning one verified test workload to each hardware category:
+
+1. **01 — Compute Core**:
+   - CPU: Single-core IPC and Rayon multi-threaded tiled matrix multiplication (GEMM).
+   - GPU: Numerical FP32 matrix workloads measuring actual operations per second (TFLOPS).
+   - Real execution timing with nanosecond resolution and verifiable dimensions.
+
+2. **02 — Memory Bandwidth**:
+   - System RAM: Multi-threaded STREAM-style bandwidth throughput (GB/s).
+   - GPU VRAM: Copy, scale, and triad memory throughput.
+   - Preserves a guaranteed 20% or 2 GiB memory headroom to prevent out-of-memory thrashing. On Apple Silicon, unified memory is correctly identified without fabricating separate VRAM numbers.
+
+3. **03 — Hardware Acceleration**:
+   - Instruction Set Discovery: Detects AVX-512, AVX2, FMA3, SSE4.2, ARM NEON, and AMX.
+   - Accelerators: Validates NVIDIA Tensor Cores, Apple Metal, and Vulkan backends.
+   - Evaluates numerical error against reference outputs.
+
+4. **04 — Local AI Inference**:
+   - Measures Time to First Token (TTFT) and token generation latency (ITL).
+   - Measures real tokens/second on physical local model weights across INT4, INT8, and FP16 quantizations.
+
+5. **05 — Thermal & Stability Monitoring**:
+   - Continuous sampling of junction temperature, instantaneous power draw, and clock frequencies via direct NVML bindings.
+   - **Hard Safety Guardrail**: Immediate workload abort if core temperature reaches or exceeds 80°C.
 
 ---
 
-## 3. Architecture Overview
+## 3. Product Principles
+
+- **No Fake Telemetry**: All metrics derive from real physical execution. No synthetic mock numbers or fabricated utilization curves.
+- **First-Class CPU Support**: Systems without dedicated GPUs (e.g. ultrabooks) receive a complete, first-class benchmarking experience with tailored CPU ratings.
+- **Local-First Privacy**: Benchmark runs, hardware specifications, and system ratings are stored locally in an embedded SQLite WAL database. No cloud account or external telemetry transmission is required.
+- **Safe by Design**: Workloads are bounded in duration, enforce sequential execution locks, monitor thermal sensors, and support immediate cancellation.
+
+---
+
+## 4. Architecture & Cargo Workspace
 
 ```
-                                +------------------------------------------+
-                                |               Client Apps                |
-                                +------------------------------------------+
-                                                     |
-                                            HTTP / SSE Streams
-                                                     v
-+----------------------------------------------------------------------------------------------------+
-|                                            MARDUK Platform                                         |
-|                                                                                                    |
-|  +----------------------------------------------------------------------------------------------+  |
-|  |                                  Unified API & Control Plane                                 |  |
-|  |     /v1/chat/completions   |   /v1/models   |   /api/v1/gpus   |   /api/v1/workers           |  |
-|  +----------------------------------------------------------------------------------------------+  |
-|                                                |                                                   |
-|                        +-----------------------+-----------------------+                           |
-|                        v                                               v                           |
-|  +-------------------------------------------+   +-----------------------------------------------+ |
-|  |            Intelligent Scheduler          |   |              GPU Resource Manager             | |
-|  |  * Hard Constraint Filter (VRAM/Health)   |   |  * NVML Device Discovery & Telemetry          | |
-|  |  * Multi-Factor Cost Scoring Function     |   |  * Memory Headroom & Thermal Tracking         | |
-|  |  * Admission Control & Bounded Queues     |<--|  * Real Metrics Poller (100ms - 1s cadence)   | |
-|  |  * Decision Audit & Rationale Logging     |   |  * No fabricated metrics fallback             | |
-|  +-------------------------------------------+   +-----------------------------------------------+ |
-|                        |                                                                           |
-|                        v                                                                           |
-|  +----------------------------------------------------------------------------------------------+  |
-|  |                                      Worker Manager                                          |  |
-|  |  * Worker Supervision & Auto-restart     * Device Affinity (CUDA_VISIBLE_DEVICES)            |  |
-|  |  * Health Heartbeats & Timeout Watcher   * Stream Cancellation & Channel Multiplexing        |  |
-|  +----------------------------------------------------------------------------------------------+  |
-|               |                                  |                                  |              |
-+---------------|----------------------------------|----------------------------------|--------------+
-                v                                  v                                  v
-       +-----------------+                +-----------------+                +-----------------+
-       | Worker 0 (GPU 0)|                | Worker 1 (GPU 0)|                | Worker 2 (GPU 1)|
-       | mistral.rs / LLM|                | mistral.rs / LLM|                | mistral.rs / LLM|
-       +-----------------+                +-----------------+                +-----------------+
+marduk/
+├── Cargo.toml                    # Root workspace configuration
+├── crates/
+│   ├── marduk-core/              # Hardware models, config, metrics primitives
+│   ├── marduk-bench/             # Benchmark engines (CPU GEMM, RAM, SQLite storage, Rating)
+│   ├── marduk-nvml/              # Zero-allocation NVML C FFI bindings & fallback sysinfo
+│   ├── marduk-api/               # Axum HTTP routes & SSE event streams
+│   ├── marduk-scheduler/         # Deterministic scoring & queue constraints
+│   ├── marduk-worker/            # Worker process supervision & inference adapters
+│   ├── marduk-learned/           # Workload execution time predictor
+│   └── marduk-cli/               # CLI binary (bench, serve, gpus)
+├── src-tauri/                    # Tauri 2 native desktop application shell
+│   ├── src/lib.rs                # Desktop IPC commands (system info, run bench, ratings, export)
+│   └── tauri.conf.json           # Native desktop window & bundle configuration
+├── frontend/                     # Petalyx-inspired React/TypeScript web application
+│   ├── src/components/Hero.tsx   # Scenic hero with 5 floating animated glass modules
+│   ├── src/components/BenchmarkModal.tsx # Interactive test runner, live metrics & ratings
+│   └── src/index.css             # Floating glass keyframes & Petalyx styling
+└── docs/                         # Canonical product specifications & documentation
 ```
-
-See [ARCHITECTURE.md](file:///c:/Users/Aadrit/Desktop/Marduk/ARCHITECTURE.md) for detailed architectural documentation.
-
----
-
-## 4. Hardware Requirements & Support
-
-- **Supported GPUs**: NVIDIA Ampere, Ada Lovelace, Hopper, Blackwell, and Turing architectures (e.g. RTX 30xx/40xx, A100, H100, L40S, V100).
-- **VRAM**: Supports configurations from single 4GB laptop GPUs up to multi-GPU 80GB+ servers with automatic VRAM-aware batch budgeting.
-- **Drivers**: NVIDIA Display Driver with NVML support (`nvml.dll` on Windows, `libnvidia-ml.so` on Linux).
-- **CPU & Fallback**: Systems without NVIDIA GPUs gracefully fall back to host CPU inference and system memory telemetry without inventing synthetic GPU statistics.
 
 ---
 
 ## 5. Quick Start
 
 ### Prerequisites
-- Rust 1.80+ (MSRV)
-- NVIDIA Drivers installed (for GPU telemetry and hardware acceleration)
-- Node.js 18+ (for dashboard frontend build)
 
-### Build and Test
+- **Rust**: 1.80+ (MSRV)
+- **Node.js**: 18+ and `npm`
+- **C/C++ Build Tools**: MSVC on Windows, Xcode on macOS, GCC/Clang on Linux
+- **Optional**: NVIDIA GPU with Display Drivers supporting NVML
+
+### Build and Run Desktop Application
+
 ```powershell
-# Build all workspace crates
-cargo build
-
-# Run unit and integration tests
-cargo test
-
-# Run linter and formatting check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo fmt --check
+# Run the native desktop application (Tauri 2)
+cargo run -p marduk-desktop
 ```
 
-### Run MARDUK
+### Run CLI Benchmarks Headlessly
+
 ```powershell
-# Run the MARDUK server
-cargo run -p marduk -- serve --host 127.0.0.1 --port 8080 --config config/marduk.toml
-
-# Check GPU hardware discovery
-cargo run -p marduk -- gpus
-
-# Inspect registered workers
-cargo run -p marduk -- workers
+# Run hardware discovery and CPU/GPU benchmarks from the terminal
+cargo run -p marduk -- bench --profile quick
 ```
 
-### Launch the Web Dashboard
+### Run Full Test Suite
+
 ```powershell
-# Navigate to dashboard
-cd dashboard
+# Run all workspace unit and integration tests (100% pass)
+cargo test --workspace
+
+# Run strict clippy verification
+cargo clippy --workspace -- -D warnings
+```
+
+### Build Web Interface
+
+```powershell
+cd frontend
 npm install
-npm run dev
-# Dashboard available at http://localhost:5173
+npm run build
 ```
 
 ---
 
-## 6. API Reference Summary
+## 6. Supported Platforms
 
-| Endpoint | Method | Description |
-| :--- | :--- | :--- |
-| `/v1/models` | GET | OpenAI-compatible list of loaded and available models |
-| `/v1/chat/completions` | POST | OpenAI-compatible chat completion (streaming SSE & json) |
-| `/health` | GET | Simple liveness probe |
-| `/ready` | GET | Readiness probe checking worker availability |
-| `/metrics` | GET | Prometheus exposition format metrics |
-| `/api/v1/gpus` | GET | Real-time NVML hardware metrics and telemetry |
-| `/api/v1/workers` | GET | Worker statuses, queue depths, device affinities |
-| `/api/v1/workers` | POST | Register or spawn a new inference worker |
-| `/api/v1/workers/:id` | DELETE | Gracefully shut down a worker |
-| `/api/v1/scheduler/decisions`| GET | Audit log of recent routing decisions and rationales |
-| `/api/v1/metrics` | GET | High-level metrics JSON (RPS, TPS, TTFT, P95, queue) |
+| Platform | Compute Backends | Memory Support | Sensor Monitoring | Installer Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Windows x64** | Multi-threaded CPU, AVX2, NVIDIA CUDA | RAM + Dedicated VRAM | NVML (Temp, Power, Clocks) | **Validated v0.1.0 Binary** |
+| **macOS (Apple Silicon)** | Multi-threaded CPU, ARM NEON, Metal | Unified Memory Parity | macOS system telemetry | In Active Validation |
+| **Linux (x86_64)** | Multi-threaded CPU, AVX2/512, CUDA/ROCm | RAM + Dedicated VRAM | NVML / sysfs | In Active Validation |
+| **CPU-Only (All OS)** | Rayon Tiled GEMM, SIMD Vectorization | Host RAM Bandwidth | Host thermal monitors | **Fully Supported** |
 
 ---
 
-## 7. License
+## 7. License & Credits
 
-Apache 2.0 or MIT.
+Designed and maintained for the MARDUK Project. Built with Rust, Tauri, React, and Tailwind CSS.
+Visual composition inspired by Petalyx design principles.

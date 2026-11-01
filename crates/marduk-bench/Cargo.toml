@@ -8,7 +8,6 @@ description = "Reproducible inference performance benchmark harness for MARDUK"
 
 [dependencies]
 marduk-core = { workspace = true }
-marduk-api = { workspace = true }
 marduk-nvml = { workspace = true }
 marduk-worker = { workspace = true }
 marduk-scheduler = { workspace = true }
@@ -22,3 +21,7 @@ tracing = { workspace = true }
 futures = { workspace = true }
 reqwest = { workspace = true }
 parking_lot = { workspace = true }
+uuid = { workspace = true }
+rusqlite = { workspace = true }
+rayon = { workspace = true }
+sysinfo = { workspace = true }

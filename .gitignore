@@ -4,3 +4,5 @@ Cargo.lock
 frontend/node_modules
 .env
 *.log
+MARDUK-Setup-x64.exe
+frontend/public/downloads/MARDUK-Setup-x64.exe

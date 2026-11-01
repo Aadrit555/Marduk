@@ -1,103 +1,167 @@
-import React from 'react';
-import { Cpu, ArrowUpRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { HealthStatus } from '../api';
+import { Menu, X, Download, Activity } from 'lucide-react';
 
 interface NavbarProps {
-  onOpenDashboard: () => void;
-  activeSection: string;
-  setActiveSection: (sec: string) => void;
+  health: HealthStatus | null;
+  connectionState: 'connected' | 'connecting' | 'disconnected';
+  onOpenControlCenter: (tab?: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  onOpenDashboard,
-  activeSection,
-  setActiveSection,
+  health,
+  connectionState,
+  onOpenControlCenter,
 }) => {
-  const [isScrolled, setIsScrolled] = React.useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  React.useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  const getStatusBadge = () => {
+    if (connectionState === 'connecting') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200/60">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+          Probing
+        </span>
+      );
+    }
+    if (connectionState === 'connected' && health) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-[#e7efcf] text-[#2c3a10] border border-[#d2dfab]/70">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#6f9a0c]" />
+          {health.nvml_available ? 'NVIDIA & CPU Active' : 'CPU Engine Active'}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-[#f0f2eb] text-[#4d5642] border border-[#dce2d4]">
+        <span className="w-1.5 h-1.5 rounded-full bg-[#829175]" />
+        Desktop Ready
+      </span>
+    );
+  };
+
+  const navLinks = [
+    { label: 'Product', href: '#product' },
+    { label: 'Benchmarks', href: '#benchmarks' },
+    { label: 'Compatibility', href: '#compatibility' },
+    { label: 'Safety', href: '#safety' },
+    { label: 'Documentation', href: '#docs' },
+    { label: 'Releases', href: '#download' },
+  ];
 
   return (
-    <header
-      className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 sm:px-12 py-3.5 transition-all duration-300 ${
-        isScrolled
-          ? 'bg-[#050507]/85 backdrop-blur-xl border-b border-white/10 shadow-2xl shadow-black/80'
-          : 'bg-transparent'
-      }`}
-    >
-      {/* Brand Logo */}
-      <div className="flex items-center gap-3">
-        <a href="#hero" className="flex items-center gap-2.5 group">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-redshift-600 via-redshift-500 to-amber-500 p-0.5 shadow-lg shadow-redshift-600/30 group-hover:shadow-redshift-600/50 transition-all">
-            <div className="w-full h-full bg-[#09080a] rounded-[6px] flex items-center justify-center">
-              <svg className="w-4 h-4 text-redshift-400" viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-              </svg>
+    <>
+      <header className="fixed top-[22px] left-1/2 -translate-x-1/2 z-50 w-[calc(100%-32px)] max-w-5xl">
+        <nav
+          aria-label="Primary Navigation"
+          className="nav flex items-center justify-between gap-4 sm:gap-8 px-4 sm:px-6 py-2 rounded-full bg-white/90 backdrop-blur-md shadow-[0_0_0_1px_rgba(0,0,0,0.06),0_6px_20px_rgba(0,0,0,0.06)] border border-white/60 transition-all duration-300"
+        >
+          {/* Brand Link */}
+          <a
+            href="#hero"
+            aria-label="MARDUK home"
+            className="brand flex items-center gap-2.5 text-xl font-medium tracking-tight text-[#121410] hover:opacity-85 transition-opacity"
+          >
+            <img
+              src="/icon.png"
+              alt="MARDUK Icon"
+              className="w-6 h-6 rounded-md object-cover shadow-sm border border-[#d2dfab]/60"
+            />
+            <span className="font-semibold lowercase tracking-tight">marduk</span>
+          </a>
+
+          {/* Center Links (Desktop) */}
+          <div className="hidden lg:flex items-center gap-6 text-[13px] font-medium text-[#2b2e27]">
+            {navLinks.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                className="hover:text-[#4d6a10] transition-colors"
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+
+          {/* Right Actions */}
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:block">{getStatusBadge()}</div>
+
+            <a
+              href="#download"
+              className="btn text-xs sm:text-[13px]"
+              aria-label="Download MARDUK Desktop"
+            >
+              <Download className="w-3.5 h-3.5 mr-1.5" />
+              Download MARDUK
+            </a>
+
+            {/* Mobile Hamburger Button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden p-2 text-[#121410] hover:bg-neutral-100 rounded-full transition-colors cursor-pointer border-none bg-transparent"
+              aria-label={mobileMenuOpen ? 'Close Menu' : 'Open Menu'}
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
+        </nav>
+      </header>
+
+      {/* Mobile Drawer */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden animate-fade-in"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <div
+            className="absolute top-20 left-4 right-4 bg-white rounded-3xl p-6 shadow-2xl border border-neutral-100 flex flex-col gap-4 animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-[#eef0ea]">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#6f9a0c]">
+                Navigation
+              </span>
+              {getStatusBadge()}
+            </div>
+
+            <div className="flex flex-col gap-3">
+              {navLinks.map((link) => (
+                <a
+                  key={link.label}
+                  href={link.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-base font-medium text-[#121410] hover:text-[#4d6a10] py-1.5 transition-colors"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2">
+              <a
+                href="#download"
+                onClick={() => setMobileMenuOpen(false)}
+                className="btn w-full justify-center text-sm"
+              >
+                <Download className="w-4 h-4 mr-1.5" />
+                Download MARDUK
+              </a>
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenControlCenter();
+                }}
+                className="btn-secondary w-full justify-center text-sm"
+              >
+                <Activity className="w-4 h-4 mr-1.5 text-[#4d6a10]" />
+                Hardware Console
+              </button>
             </div>
           </div>
-          <div className="flex flex-col">
-            <span className="font-extrabold text-base tracking-tight text-white group-hover:text-redshift-200 transition-colors">
-              MARDUK
-            </span>
-            <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400">
-              Redshift Core
-            </span>
-          </div>
-        </a>
-      </div>
-
-      {/* Nav Pill */}
-      <nav className="hidden md:flex items-center gap-1 px-4 py-1.5 rounded-full glass-pill text-xs font-medium text-zinc-300 shadow-xl shadow-black/40">
-        {[
-          { id: 'hero', label: 'Platform' },
-          { id: 'cluster', label: 'Cluster' },
-          { id: 'scheduler', label: 'Scheduler' },
-          { id: 'telemetry', label: 'Hardware' },
-          { id: 'playground', label: 'Inference' },
-        ].map((item) => (
-          <button
-            key={item.id}
-            onClick={() => {
-              setActiveSection(item.id);
-              document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth' });
-            }}
-            className={`px-3 py-1.5 rounded-full transition-all duration-200 ${
-              activeSection === item.id
-                ? 'bg-white/10 text-white font-semibold'
-                : 'hover:text-white hover:bg-white/5'
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
-
-      {/* Right Actions */}
-      <div className="flex items-center gap-3">
-        {/* Hardware Status Pill */}
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-950/80 border border-zinc-800 text-[11px] font-mono text-zinc-300">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-redshift-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-redshift-500"></span>
-          </span>
-          <Cpu className="w-3 h-3 text-redshift-400" />
-          <span>NVML ACTIVE</span>
         </div>
-
-        {/* Primary CTA Button */}
-        <button
-          onClick={onOpenDashboard}
-          className="inline-flex items-center gap-2 px-5 py-2 rounded-full font-semibold text-xs text-black bg-white hover:bg-zinc-200 transition-all shadow-lg hover:shadow-white/20 active:scale-95 cursor-pointer"
-        >
-          <span>Control Center</span>
-          <ArrowUpRight className="w-3.5 h-3.5 text-black" />
-        </button>
-      </div>
-    </header>
+      )}
+    </>
   );
 };

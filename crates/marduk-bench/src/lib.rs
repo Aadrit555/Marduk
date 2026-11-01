@@ -1,3 +1,18 @@
+pub mod cpu_bench;
+pub mod engine;
+pub mod hardware;
+pub mod rating;
+pub mod storage;
+pub mod types;
+pub mod workloads;
+
+pub use cpu_bench::CpuBenchmarkRunner;
+pub use engine::BenchmarkEngine;
+pub use hardware::{CpuTopology, GpuTopology, HardwareDiscoveryEngine, SystemHardwareSummary};
+pub use rating::{PerformanceRatingEngine, SystemRating};
+pub use storage::{BenchmarkJobRecord, LocalBenchmarkStorage, SystemRatingRecord};
+pub use types::*;
+
 use chrono::{DateTime, Utc};
 use marduk_core::models::{ChatCompletionRequest, ChatMessage};
 use marduk_core::scheduler::SchedulerPolicy;
@@ -13,6 +28,7 @@ use std::time::Instant;
 use tracing::info;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct BenchmarkConfig {
     pub concurrency: usize,
     pub total_requests: usize,
@@ -282,5 +298,192 @@ mod tests {
         assert_eq!(result.successful_requests, 6);
         assert!(result.requests_per_second > 0.0);
         assert!(result.latency.p50_ms > 0.0);
+    }
+
+    #[tokio::test]
+    async fn test_benchmark_engine_capabilities_and_safety_budget() {
+        let telemetry = Arc::new(GpuTelemetryEngine::new(false));
+        let supervisor = Arc::new(WorkerSupervisor::new(telemetry.clone(), 32));
+        let engine = BenchmarkEngine::new(telemetry, supervisor);
+
+        let caps = engine.get_capabilities();
+        assert!(caps.safety_vram_reserve_bytes >= 2 * 1024 * 1024 * 1024);
+        assert!(!caps.supported_precisions.is_empty());
+        assert!(caps.thermal_slowdown_celsius.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_benchmark_engine_concurrency_prevention() {
+        let telemetry = Arc::new(GpuTelemetryEngine::new(false));
+        let supervisor = Arc::new(WorkerSupervisor::new(telemetry.clone(), 32));
+        let engine = BenchmarkEngine::new(telemetry, supervisor);
+
+        let req1 = RunBenchmarkRequest {
+            test_type: BenchmarkType::ComputeCore,
+            device_id: Some(0),
+            duration_seconds: Some(3),
+            precision: Some("FP32".to_string()),
+            model_id: None,
+            use_cpu: None,
+        };
+
+        let run_id = engine.submit_job(req1.clone()).await.expect("First job submits");
+        assert!(run_id.starts_with("bench-"));
+
+        // Second immediate job on same device must be rejected
+        let req2 = RunBenchmarkRequest {
+            test_type: BenchmarkType::VramSpeed,
+            device_id: Some(0),
+            duration_seconds: Some(3),
+            precision: None,
+            model_id: None,
+            use_cpu: None,
+        };
+
+        let err = engine.submit_job(req2).await;
+        assert!(err.is_err(), "Concurrent benchmark must be rejected");
+
+        // Cancel the running job
+        let cancel_res = engine.cancel_job(&run_id);
+        assert!(cancel_res.is_ok(), "Cancellation succeeds");
+    }
+
+    #[tokio::test]
+    async fn test_benchmark_engine_cancellation_and_job_lifecycle() {
+        let telemetry = Arc::new(GpuTelemetryEngine::new(false));
+        let supervisor = Arc::new(WorkerSupervisor::new(telemetry.clone(), 32));
+        let engine = BenchmarkEngine::new(telemetry, supervisor);
+
+        let req = RunBenchmarkRequest {
+            test_type: BenchmarkType::ThermalStability,
+            device_id: Some(0),
+            duration_seconds: Some(8),
+            precision: None,
+            model_id: None,
+            use_cpu: None,
+        };
+
+        let run_id = engine.submit_job(req).await.expect("Job submits");
+        let job = engine.get_job(&run_id).expect("Job found in registry");
+        assert_eq!(job.test_type, BenchmarkType::ThermalStability);
+
+        // Cancel
+        engine.cancel_job(&run_id).unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        let cancelled_job = engine.get_job(&run_id).expect("Job found");
+        assert_eq!(cancelled_job.status, JobStatus::Cancelled);
+    }
+
+    #[test]
+    fn test_hardware_discovery() {
+        let telemetry = Arc::new(GpuTelemetryEngine::new(false));
+        let summary = HardwareDiscoveryEngine::discover_system(&telemetry);
+
+        assert!(!summary.cpu.brand.is_empty());
+        assert!(summary.cpu.logical_cores > 0);
+        assert!(summary.cpu.total_memory_bytes > 0);
+        assert!(!summary.primary_device_name.is_empty());
+    }
+
+    #[test]
+    fn test_cpu_benchmarks_execution() {
+        let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+        // Single-Core
+        let single_res = CpuBenchmarkRunner::run_single_core(2, &cancel, |_pct, _stage| {})
+            .expect("Single-core benchmark must succeed");
+        assert!(single_res.achieved_tflops.unwrap_or(0.0) > 0.0);
+        assert!(single_res.total_flops.unwrap_or(0) > 0);
+
+        // Multi-Core
+        let multi_res = CpuBenchmarkRunner::run_multi_core(2, &cancel, |_pct, _stage| {})
+            .expect("Multi-core benchmark must succeed");
+        assert!(multi_res.achieved_tflops.unwrap_or(0.0) > 0.0);
+
+        // SIMD
+        let simd_res = CpuBenchmarkRunner::run_simd_acceleration(2, &cancel, |_pct, _stage| {})
+            .expect("SIMD benchmark must succeed");
+        assert!(simd_res.tensor_tflops.unwrap_or(0.0) > 0.0);
+        assert!(simd_res.speedup_vs_fp32.unwrap_or(0.0) > 1.0);
+
+        // RAM Bandwidth
+        let ram_res = CpuBenchmarkRunner::run_ram_bandwidth(2, &cancel, |_pct, _stage| {})
+            .expect("RAM bandwidth benchmark must succeed");
+        assert!(ram_res.bandwidth_gbps.unwrap_or(0.0) > 0.0);
+    }
+
+    #[test]
+    fn test_sqlite_persistence_and_export() {
+        let storage = LocalBenchmarkStorage::in_memory().expect("In-memory SQLite initializes");
+
+        let job = BenchmarkJob {
+            run_id: "test-run-123".to_string(),
+            test_type: BenchmarkType::ComputeCore,
+            device_id: 0,
+            device_name: "Test Accelerator".to_string(),
+            status: JobStatus::Completed,
+            progress_percent: 100,
+            current_stage: "Completed".to_string(),
+            created_at: Utc::now(),
+            started_at: Some(Utc::now()),
+            ended_at: Some(Utc::now()),
+            duration_secs: Some(3.5),
+            config: RunBenchmarkRequest {
+                test_type: BenchmarkType::ComputeCore,
+                device_id: Some(0),
+                duration_seconds: Some(3),
+                precision: Some("FP32".to_string()),
+                model_id: None,
+                use_cpu: None,
+            },
+            hardware_metadata: marduk_core::telemetry::GpuDevice {
+                id: 0,
+                uuid: "test-uuid".to_string(),
+                name: "Test Accelerator".to_string(),
+                pci_bus_id: "0000:00:00.0".to_string(),
+                compute_capability: Some("8.9".to_string()),
+                driver_version: Some("550.0".to_string()),
+                cuda_version: Some("12.4".to_string()),
+                total_memory_bytes: 8 * 1024 * 1024 * 1024,
+            },
+            metrics: Some(BenchmarkMetrics {
+                duration_ms: 3500.0,
+                samples_count: 50,
+                achieved_tflops: Some(14.5),
+                ..Default::default()
+            }),
+            safety_events: vec![],
+            failure_reason: None,
+            rating: None,
+        };
+
+        storage.record_run(&job).expect("Run successfully records to SQLite");
+
+        let runs = storage.get_recent_runs(10).expect("Retrieval succeeds");
+        assert_eq!(runs.len(), 1);
+        assert_eq!(runs[0].id, "test-run-123");
+        assert_eq!(runs[0].metrics.as_ref().and_then(|m| m.achieved_tflops), Some(14.5));
+
+        let json = storage.export_json().expect("JSON export succeeds");
+        assert!(json.contains("test-run-123"));
+
+        let csv = storage.export_csv().expect("CSV export succeeds");
+        assert!(csv.contains("test-run-123"));
+    }
+
+    #[test]
+    fn test_rating_engine() {
+        let gpu_score = PerformanceRatingEngine::compute_gpu_score(82.6, 1008.0, 330.0, 100.0);
+        assert!((gpu_score - 10000.0).abs() < 1.0, "Reference 4090 parameters should equal ~10,000 points");
+
+        let cpu_score = PerformanceRatingEngine::compute_cpu_score(120.0, 1800.0, 4.0, 80.0);
+        assert!((cpu_score - 10000.0).abs() < 1.0, "Reference high-end CPU parameters should equal ~10,000 points");
+
+        let tier1 = PerformanceRatingEngine::classify_tier(Some(9500.0), 9000.0);
+        assert!(tier1.contains("Tier 1"));
+
+        let cpu_tier = PerformanceRatingEngine::classify_tier(None, 6500.0);
+        assert!(cpu_tier.contains("CPU Host Profile"));
     }
 }

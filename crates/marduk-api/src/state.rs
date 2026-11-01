@@ -80,6 +80,8 @@ pub struct AppState {
     pub learned_engine: Arc<LearnedSchedulerEngine>,
     pub model_registry: Arc<RwLock<Vec<ModelInfo>>>,
     pub metrics_tracker: Arc<MetricsTracker>,
+    pub benchmark_results: Arc<RwLock<Vec<marduk_bench::BenchmarkResult>>>,
+    pub benchmark_engine: Arc<marduk_bench::BenchmarkEngine>,
 }
 
 impl AppState {
@@ -89,6 +91,10 @@ impl AppState {
         scheduler: Arc<Scheduler>,
         learned_engine: Arc<LearnedSchedulerEngine>,
     ) -> Self {
+        let benchmark_engine = Arc::new(marduk_bench::BenchmarkEngine::new(
+            telemetry_engine.clone(),
+            worker_supervisor.clone(),
+        ));
         // Register default supported models
         let initial_models = vec![
             ModelInfo {
@@ -130,6 +136,8 @@ impl AppState {
             learned_engine,
             model_registry: Arc::new(RwLock::new(initial_models)),
             metrics_tracker: Arc::new(MetricsTracker::new()),
+            benchmark_results: Arc::new(RwLock::new(Vec::new())),
+            benchmark_engine,
         }
     }
 }

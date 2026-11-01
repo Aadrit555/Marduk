@@ -9,7 +9,7 @@ This guide details the local setup, build commands, testing strategies, coding s
 - **Rust**: Version 1.80+ (`rustup default stable`)
 - **C++ Build Tools**: Visual Studio Build Tools 2022/2026 with C++ workload on Windows (`cl.exe`, `link.exe`), or GCC/Clang on Linux.
 - **NVIDIA GPU**: Required for NVML telemetry and GPU-accelerated inference. (Fallback mode available for development without a GPU).
-- **Node.js**: Version 18+ and npm 9+ for the frontend dashboard.
+- **Node.js**: Version 18+ and npm 9+ for the web control center frontend.
 
 ---
 
@@ -86,21 +86,21 @@ cargo run -p marduk -- bench --concurrency 8 --requests 100
 
 ---
 
-## 4. Dashboard Development
+## 4. Frontend & Control Center Development
 
 ```powershell
-cd dashboard
+cd frontend
 npm install
 npm run dev
 ```
-The dashboard dev server will run at `http://localhost:5173` and proxy API calls to `http://localhost:8080`.
+The frontend dev server runs at `http://localhost:5173` with configurable proxy/base URL support to `http://localhost:8080`.
 
 To build the static distribution for production:
 ```powershell
-cd dashboard
+cd frontend
 npm run build
 ```
-Built assets will be placed in `dashboard/dist`, which can be served directly by `marduk-api`.
+Built assets will be placed in `frontend/dist`, which are automatically served by `marduk-api` at the root URL.
 
 ---
 

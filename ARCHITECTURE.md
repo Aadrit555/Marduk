@@ -28,7 +28,7 @@ marduk/
 │   ├── marduk-api/             # Axum HTTP routes, SSE streaming, OpenAI compatibility
 │   ├── marduk-bench/           # Reproducible benchmark harness (TTFT, ITL, latency, RPS)
 │   └── marduk-cli/             # Main binary CLI (`marduk serve`, `marduk gpus`, etc.)
-├── dashboard/                  # React + TypeScript observability dashboard
+├── frontend/                   # Petalyx-inspired React + TypeScript observability & control center
 ├── config/                     # Configuration templates
 └── tests/                      # Integration and stress test suites
 ```

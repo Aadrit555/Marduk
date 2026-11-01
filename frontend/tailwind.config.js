@@ -4,34 +4,28 @@ export default {
   theme: {
     extend: {
       colors: {
-        redshift: {
-          50: '#fff1f0',
-          100: '#ffdfdc',
-          200: '#ffc5c0',
-          300: '#ff9d93',
-          400: '#ff6454',
-          500: '#f83b27',
-          600: '#e5220e',
-          700: '#c11807',
-          800: '#9f170a',
-          900: '#831a0f',
-          950: '#480803',
+        petalyx: {
+          ink: 'var(--ink, #121410)',
+          olive: 'var(--olive, #4d6a10)',
+          green: 'var(--green, #6f9a0c)',
+          lime: 'var(--lime, #b4cd52)',
+          pill: 'var(--pill, #e7efcf)',
+          line: 'var(--line, #eef0ea)',
+          bg: 'var(--bg, #ffffff)',
+          stage: 'var(--stage, #e9eee0)',
         },
       },
       fontFamily: {
-        serif: ['"Instrument Serif"', '"Playfair Display"', '"Fraunces"', 'Georgia', 'serif'],
-        sans: ['"Inter"', '"Plus Jakarta Sans"', '-apple-system', 'sans-serif'],
-        mono: ['"JetBrains Mono"', '"Fira Code"', 'monospace'],
+        sans: ['"Inter Tight"', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'monospace'],
       },
-      animation: {
-        'pulse-slow': 'pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'beam-flicker': 'beamFlicker 3s ease-in-out infinite alternate',
+      borderRadius: {
+        'petalyx': '22px',
       },
-      keyframes: {
-        beamFlicker: {
-          '0%': { opacity: '0.85', filter: 'drop-shadow(0 0 15px rgba(255, 100, 50, 0.6))' },
-          '100%': { opacity: '1', filter: 'drop-shadow(0 0 30px rgba(255, 60, 20, 0.9))' },
-        },
+      boxShadow: {
+        'btn': 'inset 0 1px 0 rgba(255,255,255,.25), 0 2px 6px rgba(60,80,10,.25)',
+        'pill': '0 0 0 1px rgba(0,0,0,.05), 0 6px 18px rgba(0,0,0,.06)',
+        'elevated': '0 30px 60px rgba(10,20,60,.12)',
       },
     },
   },

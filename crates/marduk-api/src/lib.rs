@@ -37,6 +37,43 @@ pub fn build_app(state: AppState) -> Router {
             get(routes::get_scheduler_decisions_handler),
         )
         .route("/api/v1/metrics", get(routes::get_metrics_handler))
+        .route(
+            "/api/v1/benchmarks",
+            get(routes::get_benchmarks_handler).post(routes::run_benchmark_handler),
+        )
+        // Dedicated GPU & CPU Benchmark Subsystem
+        .route(
+            "/api/v1/benchmark/capabilities",
+            get(routes::get_benchmark_capabilities_handler),
+        )
+        .route(
+            "/api/v1/benchmark/hardware",
+            get(routes::get_system_hardware_handler),
+        )
+        .route(
+            "/api/v1/benchmark/rating",
+            get(routes::get_system_rating_handler),
+        )
+        .route(
+            "/api/v1/benchmark/export",
+            get(routes::export_benchmark_results_handler),
+        )
+        .route(
+            "/api/v1/benchmark/history",
+            get(routes::get_benchmark_history_handler),
+        )
+        .route(
+            "/api/v1/benchmark/:run_id",
+            get(routes::get_benchmark_job_handler),
+        )
+        .route(
+            "/api/v1/benchmark/run",
+            post(routes::run_benchmark_job_handler),
+        )
+        .route(
+            "/api/v1/benchmark/:run_id/cancel",
+            post(routes::cancel_benchmark_job_handler),
+        )
         // OpenAI-compatible endpoints
         .route("/v1/models", get(routes::openai_list_models_handler))
         .route(
